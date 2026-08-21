@@ -1,45 +1,23 @@
-# Image Binary Refresh
+# Image Binary Refresh v2
 
-Aplicação web estática para processar imagens em lote sem separar pastas.
+Aplicação web estática para processar várias imagens sem separar pastas.
 
-## O que ela faz
+## Novidades da v2
 
-- aceita várias imagens via drag-and-drop;
-- processa tudo localmente no navegador;
-- reconstrói o arquivo PNG;
-- remove EXIF/XMP e outros metadados comuns porque gera um PNG novo;
-- alterna RGB/RGBA quando isso não muda a aparência;
-- usa filtros PNG variáveis por linha;
-- usa um nonce binário privado opcional;
-- calcula SHA-256 antes/depois;
-- reabre o arquivo gerado e confirma igualdade RGBA pixel a pixel;
-- permite baixar cada resultado ou tudo em ZIP;
-- inclui `relatorio.csv` dentro do ZIP.
+- corrige o fluxo para baixar o arquivo realmente processado;
+- exige `SHA-256 original != SHA-256 novo`;
+- pode operar em dois modos:
+  - **pixels idênticos**: mantém a imagem decodificada exatamente igual;
+  - **pixels diferentes** (padrão): adiciona microformas geométricas discretas com cor muito próxima ao fundo para alterar poucos pixels;
+- mostra quantos pixels mudaram;
+- gera ZIP com `relatorio.csv`.
 
-## Como usar localmente
+## Como publicar no GitHub Pages
 
-Basta abrir `index.html` em um navegador moderno com internet.
+1. Substitua o `index.html` antigo por este novo.
+2. Faça commit.
+3. O GitHub Pages atualizará automaticamente.
 
-A página usa apenas duas bibliotecas carregadas via CDN:
-- pako
-- JSZip
+## Observação
 
-As imagens não são enviadas para esses serviços; todo o processamento ocorre no navegador.
-
-## Publicar no GitHub Pages
-
-1. Crie um repositório novo no GitHub.
-2. Envie `index.html` e `README.md` para a raiz do repositório.
-3. Abra **Settings > Pages**.
-4. Em **Build and deployment**, selecione **Deploy from a branch**.
-5. Selecione a branch `main` e a pasta `/ (root)`.
-6. Salve.
-
-O GitHub exibirá a URL pública do site.
-
-## Observação técnica
-
-A ferramenta muda a representação binária do arquivo e pode manter os pixels decodificados idênticos.
-Isso não impede sistemas de busca visual ou perceptual hash de reconhecerem o mesmo conteúdo visual.
-
-Para JPG/WebP/BMP, o navegador primeiro decodifica a imagem e o resultado é salvo como PNG lossless.
+A ferramenta muda o arquivo binário e, se o modo padrão estiver ligado, altera poucos pixels de forma quase imperceptível. Isso não impede completamente sistemas de reconhecimento visual de associarem as imagens pelo conteúdo geral.
