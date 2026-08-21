@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Image Binary Refresh v3</title>
-  <meta name="description" content="Processamento local em lote com no mínimo 1% de pixels diferentes e arquivos abaixo de 2 MB." />
+  <title>Image Binary Refresh v4</title>
+  <meta name="description" content="Processamento robusto em lote, escolha de pasta de saída, no mínimo 1% de pixels diferentes e arquivos abaixo de 2 MB." />
   <style>
     :root {
       color-scheme: dark;
@@ -296,15 +296,108 @@
       line-height: 1.58;
     }
 
+
+    .queue-panel {
+      margin-top: 16px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: rgba(12, 20, 38, .56);
+    }
+
+    .queue-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .queue-head strong { font-size: 14px; }
+    .queue-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .queue-actions button { padding: 8px 11px; font-size: 12px; }
+
+    .queue-empty {
+      padding: 18px 14px;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+    }
+
+    .queue-list {
+      max-height: 260px;
+      overflow: auto;
+    }
+
+    .queue-item {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) 110px 120px 44px;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-top: 1px solid rgba(41, 58, 95, .68);
+      font-size: 12px;
+    }
+
+    .queue-item:first-child { border-top: 0; }
+    .queue-name { min-width: 0; }
+    .queue-name b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .queue-name small { display: block; margin-top: 3px; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+    .queue-remove { padding: 6px 9px; background: #3a2940; color: #ffd6df; }
+
+    .status-badge {
+      display: inline-block;
+      padding: 5px 8px;
+      border-radius: 999px;
+      background: #20304e;
+      color: #cbd8ef;
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .status-badge.processing { background: rgba(115, 173, 255, .14); color: #bcd7ff; }
+    .status-badge.done { background: rgba(93, 211, 158, .12); color: #a9f0cf; }
+    .status-badge.error { background: rgba(255, 112, 112, .12); color: #ffc0c0; }
+    .status-badge.cancelled { background: rgba(255, 209, 102, .12); color: #ffe39b; }
+
+    .folder-panel {
+      display: grid;
+      grid-template-columns: minmax(250px, 1fr) auto minmax(240px, auto);
+      align-items: center;
+      gap: 14px;
+      margin-top: 16px;
+      padding: 14px;
+      border: 1px solid rgba(115, 173, 255, .28);
+      border-radius: 14px;
+      background: rgba(115, 173, 255, .055);
+    }
+
+    .folder-copy strong { display: block; margin-bottom: 4px; font-size: 14px; }
+    .folder-copy span { color: var(--muted); font-size: 12px; line-height: 1.4; }
+    .folder-selected { color: var(--good) !important; font-weight: 750; }
+    .folder-panel .check { margin: 0; }
+
+    .result-actions { display: flex; flex-wrap: wrap; gap: 7px; min-width: 155px; }
+    .result-actions button { padding: 7px 9px; font-size: 11px; }
+
+    .cancel { background: #5d3742; color: #ffe9ee; }
+
     @media (max-width: 1020px) {
       .hero { display: block; }
       .privacy { display: inline-block; margin-top: 18px; }
       .settings { grid-template-columns: 1fr 1fr; }
+      .folder-panel { grid-template-columns: 1fr; }
+      .queue-item { grid-template-columns: minmax(180px, 1fr) 95px 110px 40px; }
       .count { width: 100%; margin-left: 0; }
     }
 
     @media (max-width: 660px) {
       .settings { grid-template-columns: 1fr; }
+      .queue-item { grid-template-columns: minmax(150px, 1fr) 82px 36px; }
+      .queue-size { display: none; }
       .wrap { width: min(100% - 20px, 1240px); padding-top: 24px; }
     }
   </style>
@@ -313,10 +406,10 @@
   <main class="wrap">
     <section class="hero">
       <div>
-        <h1>Image Binary Refresh v3</h1>
+        <h1>Image Binary Refresh v4</h1>
         <p class="lead">
-          Processa imagens em lote, remove metadados comuns, garante pelo menos a porcentagem configurada de pixels diferentes
-          e comprime cada arquivo para ficar abaixo do limite definido. Todo o processamento acontece no seu navegador.
+          Adicione arquivos em várias seleções ou uma pasta inteira, processe tudo em fila e salve diretamente na pasta escolhida.
+          A ferramenta mantém o limite de tamanho e a diferença mínima de pixels configurada, sem enviar imagens ao servidor.
         </p>
       </div>
       <div class="privacy">Nenhuma imagem é enviada ao servidor</div>
@@ -325,8 +418,25 @@
     <section class="card panel">
       <div id="drop" class="drop">
         <strong>Arraste suas imagens aqui</strong>
-        <span>ou clique para selecionar várias imagens de uma vez</span>
+        <span>ou clique para adicionar várias imagens; novas seleções são acumuladas na fila</span>
         <input id="picker" type="file" accept="image/png,image/jpeg,image/webp,image/bmp" multiple />
+        <input id="folderPicker" type="file" accept="image/png,image/jpeg,image/webp,image/bmp" multiple webkitdirectory directory />
+      </div>
+
+      <div class="queue-panel">
+        <div class="queue-head">
+          <div>
+            <strong>Fila de processamento</strong>
+            <span id="queueSummary" class="pill">0 arquivos</span>
+          </div>
+          <div class="queue-actions">
+            <button id="addFilesBtn" class="secondary" type="button">Adicionar arquivos</button>
+            <button id="addFolderBtn" class="secondary" type="button">Adicionar pasta</button>
+            <button id="removeFinishedBtn" class="secondary" type="button" disabled>Remover concluídos</button>
+          </div>
+        </div>
+        <div id="queueEmpty" class="queue-empty">A fila está vazia.</div>
+        <div id="queueList" class="queue-list"></div>
       </div>
 
       <div class="settings">
@@ -370,11 +480,25 @@
         </div>
       </div>
 
+      <div class="folder-panel">
+        <div class="folder-copy">
+          <strong>Pasta de saída</strong>
+          <span id="folderStatus">Nenhuma pasta escolhida. Selecione uma pasta antes de processar para salvar automaticamente, ou escolha o destino depois.</span>
+        </div>
+        <button id="chooseFolderBtn" class="secondary" type="button">Escolher pasta</button>
+        <label class="check">
+          <input id="autoSave" type="checkbox" checked />
+          <span><b>Salvar automaticamente</b><span>Quando uma pasta estiver selecionada, cada arquivo aprovado é gravado nela assim que termina.</span></span>
+        </label>
+      </div>
+
       <div class="toolbar">
-        <button id="processBtn" disabled>Processar imagens</button>
+        <button id="processBtn" disabled>Processar fila</button>
+        <button id="cancelBtn" class="cancel" disabled>Cancelar após o arquivo atual</button>
+        <button id="saveFolderBtn" class="secondary" disabled>Salvar resultados na pasta</button>
         <button id="zipBtn" class="secondary" disabled>Baixar tudo em ZIP</button>
-        <button id="clearBtn" class="secondary" disabled>Limpar</button>
-        <div id="fileCount" class="count">Nenhuma imagem selecionada.</div>
+        <button id="clearBtn" class="secondary" disabled>Limpar fila</button>
+        <div id="fileCount" class="count">Nenhuma imagem na fila.</div>
       </div>
 
       <div id="progress" class="progress"><div id="bar" class="bar"></div></div>
@@ -401,7 +525,8 @@
               <th>SHA-256 original</th>
               <th>SHA-256 novo</th>
               <th>Status</th>
-              <th>Download</th>
+              <th>Destino</th>
+              <th>Ações</th>
             </tr>
           </thead>
           <tbody id="tbody"></tbody>
@@ -410,9 +535,9 @@
     </section>
 
     <p class="footer">
-      Para garantir menos de 2 MB em todos os casos, a ferramenta pode mudar o formato e, como último recurso, reduzir as dimensões.
-      As alterações de pixels usam micro-padrões geométricos distribuídos, modificando apenas 1 a 4 níveis de um canal por pixel antes
-      da codificação. Isso preserva a aparência humana, mas não impede sistemas de reconhecimento visual de associarem o conteúdo.
+      O processamento é sequencial para evitar estouros de memória em lotes grandes. A pasta de saída direta depende da File System Access API;
+      quando ela não estiver disponível, use o ZIP. As alterações preservam a aparência humana, mas sistemas de reconhecimento visual ainda
+      podem relacionar o conteúdo original e o processado.
     </p>
   </main>
 
@@ -430,6 +555,18 @@
 
     const drop = document.getElementById('drop');
     const picker = document.getElementById('picker');
+    const folderPicker = document.getElementById('folderPicker');
+    const addFilesBtn = document.getElementById('addFilesBtn');
+    const addFolderBtn = document.getElementById('addFolderBtn');
+    const removeFinishedBtn = document.getElementById('removeFinishedBtn');
+    const queueSummary = document.getElementById('queueSummary');
+    const queueEmpty = document.getElementById('queueEmpty');
+    const queueList = document.getElementById('queueList');
+    const chooseFolderBtn = document.getElementById('chooseFolderBtn');
+    const saveFolderBtn = document.getElementById('saveFolderBtn');
+    const folderStatus = document.getElementById('folderStatus');
+    const autoSave = document.getElementById('autoSave');
+    const cancelBtn = document.getElementById('cancelBtn');
     const processBtn = document.getElementById('processBtn');
     const zipBtn = document.getElementById('zipBtn');
     const clearBtn = document.getElementById('clearBtn');
@@ -442,11 +579,34 @@
     const tbody = document.getElementById('tbody');
     const encoder = new TextEncoder();
 
-    let selectedFiles = [];
+    let queueItems = [];
     let outputs = [];
+    let outputDirectoryHandle = null;
+    let queueId = 0;
+    let processing = false;
+    let cancelRequested = false;
 
-    drop.addEventListener('click', () => picker.click());
-    picker.addEventListener('change', () => setFiles([...picker.files]));
+    const supportedExtensions = new Set(['png', 'jpg', 'jpeg', 'webp', 'bmp']);
+
+    drop.addEventListener('click', () => {
+      if (!processing) picker.click();
+    });
+    addFilesBtn.addEventListener('click', event => {
+      event.stopPropagation();
+      if (!processing) picker.click();
+    });
+    addFolderBtn.addEventListener('click', event => {
+      event.stopPropagation();
+      if (!processing) folderPicker.click();
+    });
+    picker.addEventListener('change', () => {
+      addFiles([...picker.files]);
+      picker.value = '';
+    });
+    folderPicker.addEventListener('change', () => {
+      addFiles([...folderPicker.files]);
+      folderPicker.value = '';
+    });
 
     for (const eventName of ['dragenter', 'dragover']) {
       drop.addEventListener(eventName, event => {
@@ -463,31 +623,155 @@
     }
 
     drop.addEventListener('drop', event => {
-      const files = [...event.dataTransfer.files].filter(file => file.type.startsWith('image/'));
-      setFiles(files);
+      const files = [...event.dataTransfer.files];
+      addFiles(files);
     });
 
     processBtn.addEventListener('click', processAll);
+    cancelBtn.addEventListener('click', () => {
+      cancelRequested = true;
+      cancelBtn.disabled = true;
+      status.textContent = 'Cancelamento solicitado. O processamento será interrompido após o arquivo atual.';
+    });
     clearBtn.addEventListener('click', resetAll);
     zipBtn.addEventListener('click', downloadZip);
+    chooseFolderBtn.addEventListener('click', chooseOutputDirectory);
+    saveFolderBtn.addEventListener('click', saveAllToFolder);
+    removeFinishedBtn.addEventListener('click', removeFinishedItems);
 
-    function setFiles(files) {
-      selectedFiles = files;
-      outputs = [];
-      tbody.innerHTML = '';
-      resultsCard.hidden = true;
-      processBtn.disabled = files.length === 0;
-      clearBtn.disabled = files.length === 0;
-      zipBtn.disabled = true;
-      progress.style.display = 'none';
-      bar.style.width = '0%';
-      status.textContent = '';
-      fileCount.textContent = files.length ? `${files.length} imagem(ns) selecionada(s).` : 'Nenhuma imagem selecionada.';
-      picker.value = '';
+    function isSupportedImage(file) {
+      if (file.type && file.type.startsWith('image/')) return true;
+      const extension = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
+      return supportedExtensions.has(extension);
+    }
+
+    function fileKey(file) {
+      return [file.name, file.size, file.lastModified, file.webkitRelativePath || ''].join('|');
+    }
+
+    function addFiles(files) {
+      const existing = new Set(queueItems.map(item => item.key));
+      let added = 0;
+      let ignored = 0;
+
+      for (const file of files) {
+        if (!isSupportedImage(file)) {
+          ignored++;
+          continue;
+        }
+        const key = fileKey(file);
+        if (existing.has(key)) {
+          ignored++;
+          continue;
+        }
+        existing.add(key);
+        queueItems.push({
+          id: ++queueId,
+          key,
+          file,
+          status: 'pending',
+          error: null,
+          result: null
+        });
+        added++;
+      }
+
+      if (added || ignored) {
+        status.textContent = `${added} arquivo(s) adicionado(s) à fila${ignored ? `; ${ignored} duplicado(s) ou incompatível(is) ignorado(s)` : ''}.`;
+      }
+      renderQueue();
+    }
+
+    function queueStatusLabel(item) {
+      if (item.status === 'processing') return ['Processando', 'processing'];
+      if (item.status === 'done') return [item.result?.savedToFolder ? 'Salvo' : 'Concluído', 'done'];
+      if (item.status === 'error') return ['Falhou', 'error'];
+      if (item.status === 'cancelled') return ['Cancelado', 'cancelled'];
+      return ['Pendente', ''];
+    }
+
+    function renderQueue() {
+      queueList.innerHTML = '';
+      queueEmpty.hidden = queueItems.length > 0;
+      const totalSize = queueItems.reduce((sum, item) => sum + item.file.size, 0);
+      const pending = queueItems.filter(item => item.status === 'pending' || item.status === 'error' || item.status === 'cancelled').length;
+      const done = queueItems.filter(item => item.status === 'done').length;
+      queueSummary.textContent = `${queueItems.length} arquivo(s) • ${done} concluído(s) • ${formatBytes(totalSize)}`;
+
+      for (const item of queueItems) {
+        const [label, klass] = queueStatusLabel(item);
+        const relative = item.file.webkitRelativePath || '';
+        const detail = relative || item.result?.outputName || item.error || 'Pronto para processar';
+        const row = document.createElement('div');
+        row.className = 'queue-item';
+        row.dataset.queueId = String(item.id);
+        row.innerHTML = `
+          <div class="queue-name">
+            <b title="${escapeHtml(item.file.name)}">${escapeHtml(item.file.name)}</b>
+            <small title="${escapeHtml(detail)}">${escapeHtml(detail)}</small>
+          </div>
+          <div class="queue-size">${formatBytes(item.file.size)}</div>
+          <div><span class="status-badge ${klass}">${label}</span></div>
+          <div><button class="queue-remove" type="button" title="Remover da fila" ${processing || item.status === 'processing' ? 'disabled' : ''}>×</button></div>
+        `;
+        row.querySelector('.queue-remove').addEventListener('click', () => removeQueueItem(item.id));
+        queueList.appendChild(row);
+      }
+
+      fileCount.textContent = queueItems.length
+        ? `${queueItems.length} imagem(ns) na fila; ${pending} aguardando processamento.`
+        : 'Nenhuma imagem na fila.';
+      updateControls();
+    }
+
+    function removeQueueItem(id) {
+      if (processing) return;
+      const item = queueItems.find(entry => entry.id === id);
+      if (item?.result) outputs = outputs.filter(result => result.queueId !== id);
+      queueItems = queueItems.filter(entry => entry.id !== id);
+      document.querySelector(`tr[data-result-id="${id}"]`)?.remove();
+      renderQueue();
+      updateResultsVisibility();
+    }
+
+    function removeFinishedItems() {
+      if (processing) return;
+      const finishedIds = new Set(queueItems.filter(item => item.status === 'done').map(item => item.id));
+      queueItems = queueItems.filter(item => !finishedIds.has(item.id));
+      outputs = outputs.filter(result => !finishedIds.has(result.queueId));
+      for (const id of finishedIds) document.querySelector(`tr[data-result-id="${id}"]`)?.remove();
+      renderQueue();
+      updateResultsVisibility();
     }
 
     function resetAll() {
-      setFiles([]);
+      if (processing) return;
+      queueItems = [];
+      outputs = [];
+      tbody.innerHTML = '';
+      resultsCard.hidden = true;
+      progress.style.display = 'none';
+      bar.style.width = '0%';
+      status.textContent = '';
+      renderQueue();
+    }
+
+    function updateResultsVisibility() {
+      resultsCard.hidden = outputs.length === 0 && !tbody.children.length;
+      summary.textContent = `${outputs.length} resultado(s) aprovado(s)`;
+    }
+
+    function updateControls() {
+      const processable = queueItems.some(item => ['pending', 'error', 'cancelled'].includes(item.status));
+      processBtn.disabled = processing || !processable;
+      cancelBtn.disabled = !processing;
+      addFilesBtn.disabled = processing;
+      addFolderBtn.disabled = processing;
+      clearBtn.disabled = processing || queueItems.length === 0;
+      removeFinishedBtn.disabled = processing || !queueItems.some(item => item.status === 'done');
+      zipBtn.disabled = processing || outputs.length === 0;
+      saveFolderBtn.disabled = processing || outputs.length === 0 || !supportsDirectoryPicker();
+      chooseFolderBtn.disabled = processing || !supportsDirectoryPicker();
     }
 
     function getSettings() {
@@ -1001,45 +1285,85 @@
     }
 
     async function processAll() {
-      if (!selectedFiles.length) return;
+      if (processing) return;
+      const items = queueItems.filter(item => ['pending', 'error', 'cancelled'].includes(item.status));
+      if (!items.length) return;
       if (!window.createImageBitmap) {
         status.textContent = 'Este navegador não oferece createImageBitmap. Use uma versão atual do Chrome, Edge, Firefox ou Safari.';
         return;
       }
 
       const settings = getSettings();
-      outputs = [];
-      tbody.innerHTML = '';
+      processing = true;
+      cancelRequested = false;
       resultsCard.hidden = false;
-      processBtn.disabled = true;
-      clearBtn.disabled = true;
-      zipBtn.disabled = true;
       progress.style.display = 'block';
+      updateControls();
 
       let succeeded = 0;
       let failed = 0;
+      let cancelled = 0;
+      let completed = 0;
 
-      for (let index = 0; index < selectedFiles.length; index++) {
-        const file = selectedFiles[index];
-        bar.style.width = `${Math.round(index / selectedFiles.length * 100)}%`;
+      for (const item of items) {
+        if (cancelRequested) {
+          item.status = 'cancelled';
+          cancelled++;
+          continue;
+        }
+
+        item.status = 'processing';
+        item.error = null;
+        renderQueue();
+        bar.style.width = `${Math.round(completed / items.length * 100)}%`;
+
         try {
-          const result = await processOne(file, settings, index + 1, selectedFiles.length);
+          const result = await processOne(item.file, settings, completed + 1, items.length);
+          result.queueId = item.id;
+          outputs = outputs.filter(previous => previous.queueId !== item.id);
           outputs.push(result);
+          item.result = result;
+          item.status = 'done';
+
+          if (autoSave.checked && outputDirectoryHandle) {
+            try {
+              await writeResultToDirectory(result, outputDirectoryHandle);
+            } catch (saveError) {
+              result.saveError = saveError?.message || String(saveError);
+            }
+          }
+
           addResultRow(result);
           succeeded++;
         } catch (error) {
-          addErrorRow(file, error);
+          item.status = 'error';
+          item.error = error?.message || String(error);
+          addErrorRow(item, error);
           failed++;
         }
+
+        completed++;
+        bar.style.width = `${Math.round(completed / items.length * 100)}%`;
+        renderQueue();
+        updateResultsVisibility();
         await nextFrame();
       }
 
+      if (cancelRequested) {
+        for (const item of items) {
+          if (item.status === 'pending') {
+            item.status = 'cancelled';
+            cancelled++;
+          }
+        }
+      }
+
+      processing = false;
       bar.style.width = '100%';
-      status.textContent = `Concluído: ${succeeded} sucesso(s) e ${failed} falha(s).`;
-      summary.textContent = `${succeeded} processada(s) • ${failed} falha(s)`;
-      processBtn.disabled = false;
-      clearBtn.disabled = false;
-      zipBtn.disabled = outputs.length === 0;
+      status.textContent = `Concluído: ${succeeded} sucesso(s), ${failed} falha(s)${cancelled ? ` e ${cancelled} cancelado(s)` : ''}.`;
+      renderQueue();
+      updateResultsVisibility();
+      updateControls();
     }
 
     function addResultRow(result) {
@@ -1051,8 +1375,18 @@
       const statusText = result.newSize < HARD_LIMIT_BYTES && result.changedPct + 1e-9 >= result.requiredPct
         ? '<span class="good">APROVADO</span>'
         : '<span class="bad">REVISAR</span>';
+      const destination = result.savedToFolder
+        ? `<span class="good">${escapeHtml(result.savedFolderName || 'Pasta escolhida')}/${escapeHtml(result.savedFileName || result.outputName)}</span>`
+        : result.saveError
+          ? `<span class="warn" title="${escapeHtml(result.saveError)}">Não salvo</span>`
+          : '<span class="pill">Em memória</span>';
 
-      const row = document.createElement('tr');
+      let row = document.querySelector(`tr[data-result-id="${result.queueId}"]`);
+      if (!row) {
+        row = document.createElement('tr');
+        row.dataset.resultId = String(result.queueId);
+        tbody.appendChild(row);
+      }
       row.innerHTML = `
         <td>${escapeHtml(result.sourceName)}</td>
         <td>${escapeHtml(result.outputName)}</td>
@@ -1065,20 +1399,191 @@
         <td><code>${result.originalHash}</code></td>
         <td><code>${result.newHash}</code></td>
         <td>${statusText}</td>
-        <td><button class="mini secondary">Baixar</button></td>
+        <td>${destination}</td>
+        <td><div class="result-actions"><button class="mini secondary save-one" type="button">Salvar na pasta</button><button class="mini secondary download-one" type="button">Baixar</button></div></td>
       `;
-      row.querySelector('button').addEventListener('click', () => downloadBlob(result.blob, result.outputName));
-      tbody.appendChild(row);
+      row.querySelector('.save-one').disabled = !supportsDirectoryPicker();
+      row.querySelector('.save-one').addEventListener('click', async () => {
+        try {
+          if (!outputDirectoryHandle) await chooseOutputDirectory();
+          if (!outputDirectoryHandle) return;
+          await writeResultToDirectory(result, outputDirectoryHandle);
+          addResultRow(result);
+          renderQueue();
+          status.textContent = `${result.outputName} salvo em ${result.savedFolderName}.`;
+        } catch (error) {
+          status.textContent = `Não foi possível salvar: ${error?.message || String(error)}`;
+        }
+      });
+      row.querySelector('.download-one').addEventListener('click', () => downloadBlob(result.blob, result.outputName));
     }
 
-    function addErrorRow(file, error) {
-      const row = document.createElement('tr');
+    function addErrorRow(item, error) {
+      let row = document.querySelector(`tr[data-result-id="${item.id}"]`);
+      if (!row) {
+        row = document.createElement('tr');
+        row.dataset.resultId = String(item.id);
+        tbody.appendChild(row);
+      }
       row.innerHTML = `
-        <td>${escapeHtml(file.name)}</td>
-        <td colspan="10"><span class="bad">${escapeHtml(error?.message || String(error))}</span></td>
+        <td>${escapeHtml(item.file.name)}</td>
+        <td colspan="11"><span class="bad">${escapeHtml(error?.message || String(error))}</span></td>
         <td>—</td>
       `;
-      tbody.appendChild(row);
+    }
+
+    function supportsDirectoryPicker() {
+      return window.isSecureContext && typeof window.showDirectoryPicker === 'function';
+    }
+
+    async function chooseOutputDirectory() {
+      if (!supportsDirectoryPicker()) {
+        folderStatus.textContent = 'Seleção direta de pasta indisponível neste navegador. Use Chrome/Edge por HTTPS ou baixe o ZIP.';
+        outputDirectoryHandle = null;
+        updateControls();
+        return null;
+      }
+
+      try {
+        const handle = await window.showDirectoryPicker({
+          id: 'image-binary-refresh-output',
+          mode: 'readwrite',
+          startIn: 'downloads'
+        });
+        const allowed = await ensureDirectoryPermission(handle);
+        if (!allowed) throw new Error('Permissão de gravação não concedida.');
+        outputDirectoryHandle = handle;
+        folderStatus.textContent = `Pasta selecionada: ${handle.name}`;
+        folderStatus.classList.add('folder-selected');
+        updateControls();
+        return handle;
+      } catch (error) {
+        if (error?.name !== 'AbortError') {
+          folderStatus.textContent = `Não foi possível selecionar a pasta: ${error?.message || String(error)}`;
+        }
+        updateControls();
+        return null;
+      }
+    }
+
+    async function ensureDirectoryPermission(handle) {
+      const options = { mode: 'readwrite' };
+      if (typeof handle.queryPermission !== 'function') return true;
+      if (await handle.queryPermission(options) === 'granted') return true;
+      if (typeof handle.requestPermission === 'function' && await handle.requestPermission(options) === 'granted') return true;
+      return false;
+    }
+
+    async function directoryFileExists(directoryHandle, filename) {
+      try {
+        await directoryHandle.getFileHandle(filename);
+        return true;
+      } catch (error) {
+        if (error?.name === 'NotFoundError') return false;
+        throw error;
+      }
+    }
+
+    function splitOutputFilename(filename) {
+      const match = /^(.*?)(\.[^.]+)?$/.exec(filename);
+      return { stem: match?.[1] || filename, extension: match?.[2] || '' };
+    }
+
+    async function getUniqueOutputFilename(directoryHandle, requestedName) {
+      if (!await directoryFileExists(directoryHandle, requestedName)) return requestedName;
+      const { stem, extension } = splitOutputFilename(requestedName);
+      for (let index = 2; index <= 9999; index++) {
+        const candidate = `${stem} (${index})${extension}`;
+        if (!await directoryFileExists(directoryHandle, candidate)) return candidate;
+      }
+      throw new Error(`Não foi possível criar um nome exclusivo para ${requestedName}.`);
+    }
+
+    async function writeBlobToDirectory(blob, requestedName, directoryHandle) {
+      if (!directoryHandle) throw new Error('Nenhuma pasta de saída selecionada.');
+      if (!await ensureDirectoryPermission(directoryHandle)) throw new Error('Permissão de gravação na pasta foi negada.');
+      const filename = await getUniqueOutputFilename(directoryHandle, requestedName);
+      const fileHandle = await directoryHandle.getFileHandle(filename, { create: true });
+      const writable = await fileHandle.createWritable();
+      try {
+        await writable.write(blob);
+      } finally {
+        await writable.close();
+      }
+      return filename;
+    }
+
+    async function writeResultToDirectory(result, directoryHandle) {
+      const savedFileName = await writeBlobToDirectory(result.blob, result.outputName, directoryHandle);
+      result.savedToFolder = true;
+      result.savedFolderName = directoryHandle.name;
+      result.savedFileName = savedFileName;
+      result.saveError = null;
+      return true;
+    }
+
+    function buildReportCsv(results) {
+      const rows = [[
+        'arquivo_original', 'arquivo_novo', 'arquivo_salvo', 'pasta_saida',
+        'largura_original', 'altura_original', 'largura_saida', 'altura_saida',
+        'formato', 'qualidade', 'tamanho_original', 'tamanho_novo',
+        'pixels_diferentes', 'percentual_diferente', 'psnr_db',
+        'sha256_original', 'sha256_novo'
+      ]];
+      for (const result of results) {
+        rows.push([
+          result.sourceName, result.outputName, result.savedFileName || '', result.savedFolderName || '',
+          result.originalWidth, result.originalHeight, result.width, result.height,
+          result.extension, result.lossless ? 'lossless' : result.quality.toFixed(4),
+          result.originalSize, result.newSize, result.changedPixels, result.changedPct.toFixed(6),
+          Number.isFinite(result.psnr) ? result.psnr.toFixed(4) : 'infinito',
+          result.originalHash, result.newHash
+        ]);
+      }
+      return rows.map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n');
+    }
+
+    function reportFilename() {
+      const now = new Date();
+      const pad = value => String(value).padStart(2, '0');
+      return `relatorio_binary_refresh_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.csv`;
+    }
+
+    async function writeReportToDirectory(directoryHandle) {
+      const blob = new Blob([buildReportCsv(outputs)], { type: 'text/csv;charset=utf-8' });
+      return await writeBlobToDirectory(blob, reportFilename(), directoryHandle);
+    }
+
+    async function saveAllToFolder() {
+      if (!outputs.length) return;
+      if (!outputDirectoryHandle) await chooseOutputDirectory();
+      if (!outputDirectoryHandle) return;
+
+      saveFolderBtn.disabled = true;
+      let saved = 0;
+      let failed = 0;
+      for (let index = 0; index < outputs.length; index++) {
+        const result = outputs[index];
+        status.textContent = `Salvando ${index + 1}/${outputs.length}: ${result.outputName}`;
+        try {
+          await writeResultToDirectory(result, outputDirectoryHandle);
+          addResultRow(result);
+          saved++;
+        } catch (error) {
+          result.saveError = error?.message || String(error);
+          addResultRow(result);
+          failed++;
+        }
+        await nextFrame();
+      }
+      let reportName = '';
+      if (saved) {
+        try { reportName = await writeReportToDirectory(outputDirectoryHandle); }
+        catch (error) { failed++; status.textContent = `Arquivos salvos, mas o relatório falhou: ${error?.message || String(error)}`; }
+      }
+      renderQueue();
+      status.textContent = `${saved} arquivo(s) salvo(s) em ${outputDirectoryHandle.name}${reportName ? `; relatório: ${reportName}` : ''}${failed ? `; ${failed} falha(s)` : ''}.`;
+      updateControls();
     }
 
     function downloadBlob(blob, filename) {
@@ -1209,26 +1714,12 @@
 
       try {
         const files = [];
-        const csvRows = [[
-          'arquivo_original', 'arquivo_novo', 'largura_original', 'altura_original', 'largura_saida', 'altura_saida',
-          'formato', 'qualidade', 'tamanho_original', 'tamanho_novo', 'pixels_diferentes', 'percentual_diferente',
-          'psnr_db', 'sha256_original', 'sha256_novo'
-        ]];
-
         for (const result of outputs) {
           files.push({ name: result.outputName, bytes: new Uint8Array(await result.blob.arrayBuffer()) });
-          csvRows.push([
-            result.sourceName, result.outputName, result.originalWidth, result.originalHeight, result.width, result.height,
-            result.extension, result.lossless ? 'lossless' : result.quality.toFixed(4), result.originalSize, result.newSize,
-            result.changedPixels, result.changedPct.toFixed(6), Number.isFinite(result.psnr) ? result.psnr.toFixed(4) : 'infinito',
-            result.originalHash, result.newHash
-          ]);
         }
-
-        const csv = csvRows.map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n');
-        files.push({ name: 'relatorio.csv', bytes: encoder.encode(csv) });
+        files.push({ name: 'relatorio.csv', bytes: encoder.encode(buildReportCsv(outputs)) });
         const zipBlob = await buildStoredZip(files);
-        downloadBlob(zipBlob, 'imagens_binary_refresh_v3.zip');
+        downloadBlob(zipBlob, 'imagens_binary_refresh_v4.zip');
         status.textContent = 'ZIP criado com sucesso.';
       } catch (error) {
         status.textContent = `Erro ao criar ZIP: ${error?.message || String(error)}`;
@@ -1237,8 +1728,15 @@
       }
     }
 
-    window.__IMAGE_BINARY_REFRESH_V3__ = {
-      version: '3.0.0',
+
+    if (!supportsDirectoryPicker()) {
+      chooseFolderBtn.disabled = true;
+      folderStatus.textContent = 'Seleção direta de pasta não é suportada neste navegador. O ZIP continua disponível.';
+    }
+    renderQueue();
+
+    window.__IMAGE_BINARY_REFRESH_V4__ = {
+      version: '4.0.0',
       getResults: () => outputs.map(result => ({
         outputName: result.outputName,
         newSize: result.newSize,
@@ -1248,7 +1746,11 @@
         mime: result.mime,
         psnr: result.psnr,
         newHash: result.newHash
-      }))
+      })),
+      getQueue: () => queueItems.map(item => ({ id: item.id, name: item.file.name, status: item.status })),
+      addFiles,
+      processAll,
+      supportsDirectoryPicker
     };
   })();
   </script>

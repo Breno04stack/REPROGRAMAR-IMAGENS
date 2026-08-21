@@ -1,39 +1,63 @@
-# Image Binary Refresh v3
+# Image Binary Refresh v4
 
-Ferramenta web estática, executada inteiramente no navegador, para processar imagens em lote.
+Aplicação web estática para processar imagens em lote diretamente no navegador.
 
-## Requisitos atendidos
+## Principais recursos
 
-- mínimo configurável de pixels diferentes, com padrão de **1%**;
-- verificação da imagem final depois da codificação;
-- cada arquivo de saída fica abaixo de **1,95 MB** por padrão e sempre abaixo de 2.000.000 bytes;
-- tentativa inicial em PNG sem perdas;
-- fallback automático para JPG em imagens opacas e WebP em imagens com transparência;
-- busca da maior qualidade possível dentro do limite;
-- redução gradual das dimensões apenas quando necessária;
-- remoção de metadados comuns por reconstrução do arquivo;
-- SHA-256 antes e depois;
-- relatório CSV;
-- ZIP criado pelo próprio código, sem dependências externas.
+- várias seleções são acumuladas na mesma fila;
+- seleção múltipla de arquivos;
+- importação de uma pasta inteira em navegadores compatíveis;
+- prevenção de arquivos duplicados na fila;
+- processamento sequencial para reduzir uso de memória;
+- falha em uma imagem não interrompe o restante do lote;
+- cancelamento após o arquivo atual;
+- no mínimo 1% de pixels diferentes, com validação da saída final;
+- limite configurável abaixo de 2 MB;
+- PNG, JPEG e WebP automáticos;
+- SHA-256 original e final;
+- download individual;
+- ZIP com todas as imagens e relatório CSV;
+- gravação direta em uma pasta escolhida pelo usuário;
+- salvamento automático nessa pasta após cada imagem aprovada.
 
-## Como atualizar no GitHub Pages
+## Como atualizar o GitHub Pages
 
-1. Substitua o `index.html` atual do repositório por este arquivo.
-2. Faça o commit na branch `main`.
-3. Aguarde o GitHub Pages publicar a nova versão.
-4. Faça um recarregamento forçado no navegador: `Ctrl + Shift + R` ou `Cmd + Shift + R`.
+1. Abra o repositório `REPROGRAMAR-IMAGENS`.
+2. Substitua o arquivo `index.html` da raiz pelo novo `index.html`.
+3. Faça o commit.
+4. Aguarde o GitHub Pages republicar.
+5. Atualize o site com `Cmd + Shift + R` no Mac ou `Ctrl + Shift + R` no Windows.
 
-## Estratégia de pixels
+## Como selecionar várias imagens
 
-A ferramenta aplica micro-padrões geométricos distribuídos. Cada pixel selecionado recebe uma alteração de 1 a 4 níveis em apenas um canal RGB, preservando a textura local. Em seguida, o arquivo é codificado, reaberto e comparado com a imagem de referência. A saída só é aprovada quando o percentual final de pixels diferentes atinge o mínimo configurado.
+Existem três formas:
 
-## Estratégia de tamanho
+1. clique na área de upload e selecione várias imagens de uma vez;
+2. clique novamente em **Adicionar arquivos** para acumular novas seleções;
+3. use **Adicionar pasta** para importar todas as imagens de uma pasta.
 
-1. Tenta PNG sem perdas.
-2. Se ultrapassar o limite, usa JPG para imagens opacas ou WebP para imagens com transparência.
-3. Faz busca binária pela maior qualidade que caiba no limite.
-4. Se ainda não couber com qualidade visual mínima, reduz as dimensões em etapas de 10% e tenta novamente.
+A v4 não substitui a seleção anterior quando você adiciona novos arquivos. Ela acumula tudo na fila e ignora duplicatas exatas de seleção.
 
-## Observação
+## Pasta de saída
 
-Alterar o arquivo e pelo menos 1% dos pixels não impede sistemas de reconhecimento visual ou perceptual hash de relacionarem imagens com o mesmo conteúdo.
+No Chrome ou Edge em contexto HTTPS:
+
+1. clique em **Escolher pasta**;
+2. selecione a pasta de destino;
+3. mantenha **Salvar automaticamente** marcado;
+4. processe a fila.
+
+Cada resultado aprovado será gravado diretamente nessa pasta. Também existe o botão **Salvar resultados na pasta** para gravar arquivos já processados.
+
+Em navegadores sem suporte à seleção direta de diretório, use **Baixar tudo em ZIP**. Um site não pode escolher silenciosamente uma pasta do computador sem autorização explícita do usuário.
+
+## Observações de segurança e privacidade
+
+- as imagens são processadas localmente;
+- nada é enviado para um servidor pela aplicação;
+- o navegador exige autorização para gravar na pasta escolhida;
+- o acesso à pasta vale para a sessão e pode precisar ser concedido novamente após recarregar a página.
+
+## Vídeos
+
+Vídeos também podem ser reprocessados, mas devem usar um módulo separado baseado em FFmpeg/WebAssembly. Consulte `VIDEO.md` para o desenho técnico e as limitações.
