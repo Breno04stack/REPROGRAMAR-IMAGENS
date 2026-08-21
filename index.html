@@ -483,7 +483,7 @@
       <div class="folder-panel">
         <div class="folder-copy">
           <strong>Pasta de saída</strong>
-          <span id="folderStatus">Nenhuma pasta escolhida. Selecione uma pasta antes de processar para salvar automaticamente, ou escolha o destino depois.</span>
+          <span id="folderStatus">Nenhuma pasta escolhida. Selecione uma pasta antes de processar para salvar automaticamente, ou escolha o destino depois. Os arquivos são numerados de forma contínua (0001, 0002, 0003...).</span>
         </div>
         <button id="chooseFolderBtn" class="secondary" type="button">Escolher pasta</button>
         <label class="check">
@@ -497,6 +497,7 @@
         <button id="cancelBtn" class="cancel" disabled>Cancelar após o arquivo atual</button>
         <button id="saveFolderBtn" class="secondary" disabled>Salvar resultados na pasta</button>
         <button id="zipBtn" class="secondary" disabled>Baixar tudo em ZIP</button>
+        <button id="resetCounterBtn" class="secondary" type="button">Reiniciar numeração</button>
         <button id="clearBtn" class="secondary" disabled>Limpar fila</button>
         <div id="fileCount" class="count">Nenhuma imagem na fila.</div>
       </div>
@@ -569,6 +570,7 @@
     const cancelBtn = document.getElementById('cancelBtn');
     const processBtn = document.getElementById('processBtn');
     const zipBtn = document.getElementById('zipBtn');
+    const resetCounterBtn = document.getElementById('resetCounterBtn');
     const clearBtn = document.getElementById('clearBtn');
     const fileCount = document.getElementById('fileCount');
     const progress = document.getElementById('progress');
@@ -585,6 +587,43 @@
     let queueId = 0;
     let processing = false;
     let cancelRequested = false;
+
+    // Numeração persistente das saídas.
+    // O próximo arquivo continua do último número mesmo após recarregar ou fechar a página.
+    const OUTPUT_COUNTER_KEY = 'reprogramarImagensOutputCounter';
+    let fallbackOutputCounter = 0;
+
+    function readOutputCounter() {
+      try {
+        const value = Number.parseInt(localStorage.getItem(OUTPUT_COUNTER_KEY) || '0', 10);
+        return Number.isFinite(value) && value >= 0 ? value : 0;
+      } catch (error) {
+        return fallbackOutputCounter;
+      }
+    }
+
+    function writeOutputCounter(value) {
+      const safeValue = Math.max(0, Math.floor(Number(value) || 0));
+      fallbackOutputCounter = safeValue;
+      try {
+        localStorage.setItem(OUTPUT_COUNTER_KEY, String(safeValue));
+      } catch (error) {
+        // Em navegadores que bloqueiam localStorage, mantém o contador enquanto a página estiver aberta.
+      }
+    }
+
+    function nextOutputNumber() {
+      const next = readOutputCounter() + 1;
+      writeOutputCounter(next);
+      return String(next).padStart(4, '0');
+    }
+
+    function resetOutputCounter() {
+      writeOutputCounter(0);
+      status.textContent = 'Numeração reiniciada. O próximo arquivo será 0001.';
+    }
+
+    fallbackOutputCounter = readOutputCounter();
 
     const supportedExtensions = new Set(['png', 'jpg', 'jpeg', 'webp', 'bmp']);
 
@@ -606,6 +645,20 @@
     folderPicker.addEventListener('change', () => {
       addFiles([...folderPicker.files]);
       folderPicker.value = '';
+    });
+
+    resetCounterBtn.addEventListener('click', event => {
+      event.stopPropagation();
+      if (processing) {
+        status.textContent = 'Aguarde o processamento terminar antes de reiniciar a numeração.';
+        return;
+      }
+      const current = readOutputCounter();
+      const confirmed = window.confirm(
+        `A numeração atual está em ${String(current).padStart(4, '0')}. ` +
+        'Deseja reiniciar? O próximo arquivo processado será 0001.'
+      );
+      if (confirmed) resetOutputCounter();
     });
 
     for (const eventName of ['dragenter', 'dragover']) {
@@ -1240,7 +1293,7 @@
             }
 
             const extension = extensionForMime(encoded.mime);
-            const outputName = `${String(index).padStart(3, '0')}.${extension}`;
+            const outputName = `${nextOutputNumber()}.${extension}`;
             return {
               sourceName: file.name,
               outputName,
@@ -1546,7 +1599,7 @@
     function reportFilename() {
       const now = new Date();
       const pad = value => String(value).padStart(2, '0');
-      return `relatorio_binary_refresh_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.csv`;
+      return `relatorio_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.csv`;
     }
 
     async function writeReportToDirectory(directoryHandle) {
@@ -1719,7 +1772,7 @@
         }
         files.push({ name: 'relatorio.csv', bytes: encoder.encode(buildReportCsv(outputs)) });
         const zipBlob = await buildStoredZip(files);
-        downloadBlob(zipBlob, 'imagens_binary_refresh_v4.zip');
+        downloadBlob(zipBlob, 'imagens.zip');
         status.textContent = 'ZIP criado com sucesso.';
       } catch (error) {
         status.textContent = `Erro ao criar ZIP: ${error?.message || String(error)}`;
