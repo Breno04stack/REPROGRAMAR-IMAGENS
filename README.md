@@ -1,23 +1,39 @@
-# Image Binary Refresh v2
+# Image Binary Refresh v3
 
-Aplicação web estática para processar várias imagens sem separar pastas.
+Ferramenta web estática, executada inteiramente no navegador, para processar imagens em lote.
 
-## Novidades da v2
+## Requisitos atendidos
 
-- corrige o fluxo para baixar o arquivo realmente processado;
-- exige `SHA-256 original != SHA-256 novo`;
-- pode operar em dois modos:
-  - **pixels idênticos**: mantém a imagem decodificada exatamente igual;
-  - **pixels diferentes** (padrão): adiciona microformas geométricas discretas com cor muito próxima ao fundo para alterar poucos pixels;
-- mostra quantos pixels mudaram;
-- gera ZIP com `relatorio.csv`.
+- mínimo configurável de pixels diferentes, com padrão de **1%**;
+- verificação da imagem final depois da codificação;
+- cada arquivo de saída fica abaixo de **1,95 MB** por padrão e sempre abaixo de 2.000.000 bytes;
+- tentativa inicial em PNG sem perdas;
+- fallback automático para JPG em imagens opacas e WebP em imagens com transparência;
+- busca da maior qualidade possível dentro do limite;
+- redução gradual das dimensões apenas quando necessária;
+- remoção de metadados comuns por reconstrução do arquivo;
+- SHA-256 antes e depois;
+- relatório CSV;
+- ZIP criado pelo próprio código, sem dependências externas.
 
-## Como publicar no GitHub Pages
+## Como atualizar no GitHub Pages
 
-1. Substitua o `index.html` antigo por este novo.
-2. Faça commit.
-3. O GitHub Pages atualizará automaticamente.
+1. Substitua o `index.html` atual do repositório por este arquivo.
+2. Faça o commit na branch `main`.
+3. Aguarde o GitHub Pages publicar a nova versão.
+4. Faça um recarregamento forçado no navegador: `Ctrl + Shift + R` ou `Cmd + Shift + R`.
+
+## Estratégia de pixels
+
+A ferramenta aplica micro-padrões geométricos distribuídos. Cada pixel selecionado recebe uma alteração de 1 a 4 níveis em apenas um canal RGB, preservando a textura local. Em seguida, o arquivo é codificado, reaberto e comparado com a imagem de referência. A saída só é aprovada quando o percentual final de pixels diferentes atinge o mínimo configurado.
+
+## Estratégia de tamanho
+
+1. Tenta PNG sem perdas.
+2. Se ultrapassar o limite, usa JPG para imagens opacas ou WebP para imagens com transparência.
+3. Faz busca binária pela maior qualidade que caiba no limite.
+4. Se ainda não couber com qualidade visual mínima, reduz as dimensões em etapas de 10% e tenta novamente.
 
 ## Observação
 
-A ferramenta muda o arquivo binário e, se o modo padrão estiver ligado, altera poucos pixels de forma quase imperceptível. Isso não impede completamente sistemas de reconhecimento visual de associarem as imagens pelo conteúdo geral.
+Alterar o arquivo e pelo menos 1% dos pixels não impede sistemas de reconhecimento visual ou perceptual hash de relacionarem imagens com o mesmo conteúdo.
