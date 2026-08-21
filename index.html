@@ -1240,7 +1240,7 @@
             }
 
             const extension = extensionForMime(encoded.mime);
-            const outputName = `${baseName(file.name)}_binary-refresh_${newHash.slice(0, 8)}.${extension}`;
+            const outputName = `${String(index).padStart(3, '0')}.${extension}`;
             return {
               sourceName: file.name,
               outputName,
