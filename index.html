@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Image Binary Refresh</title>
+  <meta name="description" content="Recria imagens com representação binária diferente, preservando os pixels visíveis." />
+  <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <style>
+    :root{
+      --bg:#0b1020; --panel:#121a2f; --panel2:#17223e; --text:#eef3ff;
+      --muted:#9fb0cf; --line:#273657; --accent:#6ea8fe; --good:#5dd39e;
+      --warn:#ffd166; --bad:#ff6b6b; --shadow:0 20px 60px rgba(0,0,0,.25);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; min-height:100vh; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:radial-gradient(circle at top,#182440 0,#0b1020 42%); color:var(--text);
+    }
+    .wrap{max-width:1180px;margin:0 auto;padding:38px 20px 70px}
+    .hero{display:flex;gap:24px;align-items:flex-end;justify-content:space-between;margin-bottom:24px}
+    h1{font-size:clamp(30px,5vw,54px);line-height:1.02;margin:0 0 12px;letter-spacing:-1.5px}
+    .lead{margin:0;max-width:760px;color:var(--muted);font-size:17px;line-height:1.55}
+    .privacy{
+      padding:10px 14px;border:1px solid rgba(93,211,158,.35);background:rgba(93,211,158,.08);
+      color:#c8f7e4;border-radius:999px;font-size:13px;white-space:nowrap
+    }
+    .card{background:rgba(18,26,47,.92);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow)}
+    .drop{
+      padding:34px;border:2px dashed #39507e;border-radius:20px;text-align:center;cursor:pointer;
+      background:linear-gradient(180deg,rgba(110,168,254,.07),rgba(110,168,254,.02));
+      transition:.18s ease
+    }
+    .drop.drag{border-color:var(--accent);transform:translateY(-1px);background:rgba(110,168,254,.1)}
+    .drop strong{display:block;font-size:20px;margin-bottom:7px}
+    .drop span{color:var(--muted);font-size:14px}
+    input[type=file]{display:none}
+    .panel{padding:22px}
+    .toolbar{display:flex;gap:12px;flex-wrap:wrap;margin-top:16px;align-items:center}
+    button{
+      appearance:none;border:0;border-radius:12px;padding:12px 16px;font-weight:750;cursor:pointer;
+      background:var(--accent);color:#07101f;font-size:14px
+    }
+    button.secondary{background:#243554;color:#eaf1ff;border:1px solid #36517f}
+    button:disabled{opacity:.45;cursor:not-allowed}
+    .note{margin-left:auto;color:var(--muted);font-size:13px}
+    .options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}
+    .option{padding:14px;background:var(--panel2);border:1px solid var(--line);border-radius:14px}
+    .option label{display:flex;align-items:flex-start;gap:10px;cursor:pointer}
+    .option input{margin-top:3px}
+    .option b{display:block;font-size:14px;margin-bottom:3px}
+    .option small{display:block;color:var(--muted);line-height:1.35}
+    .progress{height:8px;background:#202d4b;border-radius:99px;overflow:hidden;margin-top:18px;display:none}
+    .bar{height:100%;width:0;background:linear-gradient(90deg,#6ea8fe,#5dd39e);transition:width .2s}
+    .statusline{margin-top:10px;color:var(--muted);font-size:13px;min-height:18px}
+    .results{margin-top:24px;overflow:hidden}
+    .results header{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid var(--line)}
+    .results h2{margin:0;font-size:18px}
+    .tablewrap{overflow:auto}
+    table{width:100%;border-collapse:collapse;min-width:1000px}
+    th,td{padding:13px 14px;border-bottom:1px solid #22304e;text-align:left;font-size:13px;vertical-align:top}
+    th{color:#aebddd;background:#10182c;position:sticky;top:0}
+    td code{font-size:11px;color:#c8d7f4}
+    .good{color:var(--good);font-weight:800}
+    .bad{color:var(--bad);font-weight:800}
+    .pill{display:inline-block;padding:5px 8px;border-radius:999px;background:#1e2e4d;color:#cbd9f2;font-size:11px}
+    .mini{padding:8px 10px;font-size:12px;border-radius:9px}
+    .footer{margin-top:20px;color:#7f91b3;font-size:12px;line-height:1.55}
+    @media(max-width:800px){.hero{display:block}.privacy{display:inline-block;margin-top:18px}.options{grid-template-columns:1fr}.note{width:100%;margin:0}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div>
+      <h1>Image Binary Refresh</h1>
+      <p class="lead">
+        Solte várias imagens de uma vez. A página decodifica os pixels, reconstrói o PNG com uma estrutura binária nova,
+        remove metadados comuns e verifica o resultado pixel a pixel antes de liberar o download.
+      </p>
+    </div>
+    <div class="privacy">Processamento local no navegador</div>
+  </div>
+
+  <section class="card panel">
+    <div id="drop" class="drop">
+      <strong>Arraste suas imagens aqui</strong>
+      <span>ou clique para selecionar várias imagens de uma vez</span>
+      <input id="picker" type="file" accept="image/png,image/jpeg,image/webp,image/bmp" multiple>
+    </div>
+
+    <div class="options">
+      <div class="option">
+        <label>
+          <input id="toggleColorType" type="checkbox" checked>
+          <span>
+            <b>Alternar RGB/RGBA quando possível</b>
+            <small>Se não houver transparência, muda a representação interna sem mudar a aparência.</small>
+          </span>
+        </label>
+      </div>
+      <div class="option">
+        <label>
+          <input id="toggleRandomFilters" type="checkbox" checked>
+          <span>
+            <b>Filtros PNG variáveis</b>
+            <small>Usa uma sequência aleatória de filtros de linha para alterar bastante o fluxo comprimido.</small>
+          </span>
+        </label>
+      </div>
+      <div class="option">
+        <label>
+          <input id="toggleNonce" type="checkbox" checked>
+          <span>
+            <b>Nonce binário privado</b>
+            <small>Adiciona um chunk privado aleatório que não afeta pixels e garante unicidade do arquivo.</small>
+          </span>
+        </label>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <button id="processBtn" disabled>Processar imagens</button>
+      <button id="zipBtn" class="secondary" disabled>Baixar tudo em ZIP</button>
+      <button id="clearBtn" class="secondary" disabled>Limpar</button>
+      <div id="fileCount" class="note">Nenhuma imagem selecionada.</div>
+    </div>
+
+    <div id="progress" class="progress"><div id="bar" class="bar"></div></div>
+    <div id="statusline" class="statusline"></div>
+  </section>
+
+  <section id="resultsCard" class="card results" hidden>
+    <header>
+      <h2>Resultados</h2>
+      <span id="summary" class="pill"></span>
+    </header>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Arquivo</th>
+            <th>Dimensões</th>
+            <th>Tamanho original</th>
+            <th>Tamanho novo</th>
+            <th>SHA-256 original</th>
+            <th>SHA-256 novo</th>
+            <th>Pixels</th>
+            <th>Download</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <p class="footer">
+    Para PNGs sem perfil de cor, a verificação é feita sobre os pixels RGBA decodificados. JPG/WebP/BMP são decodificados pelo navegador
+    e exportados como PNG lossless. Sistemas de busca visual ainda podem reconhecer o mesmo conteúdo; esta ferramenta muda a representação
+    binária do arquivo, não a identidade visual da cena.
+  </p>
+</div>
+
+<script>
+(() => {
+  const drop = document.getElementById('drop');
+  const picker = document.getElementById('picker');
+  const processBtn = document.getElementById('processBtn');
+  const zipBtn = document.getElementById('zipBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const fileCount = document.getElementById('fileCount');
+  const progress = document.getElementById('progress');
+  const bar = document.getElementById('bar');
+  const statusline = document.getElementById('statusline');
+  const tbody = document.getElementById('tbody');
+  const resultsCard = document.getElementById('resultsCard');
+  const summary = document.getElementById('summary');
+
+  let selectedFiles = [];
+  let outputs = [];
+
+  const enc = new TextEncoder();
+
+  drop.addEventListener('click', () => picker.click());
+  picker.addEventListener('change', () => setFiles([...picker.files]));
+
+  ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => {
+    e.preventDefault(); drop.classList.add('drag');
+  }));
+  ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => {
+    e.preventDefault(); drop.classList.remove('drag');
+  }));
+  drop.addEventListener('drop', e => {
+    const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
+    setFiles(files);
+  });
+
+  clearBtn.addEventListener('click', resetAll);
+  processBtn.addEventListener('click', processAll);
+  zipBtn.addEventListener('click', downloadZip);
+
+  function setFiles(files) {
+    selectedFiles = files;
+    outputs = [];
+    tbody.innerHTML = '';
+    resultsCard.hidden = true;
+    zipBtn.disabled = true;
+    processBtn.disabled = files.length === 0;
+    clearBtn.disabled = files.length === 0;
+    fileCount.textContent = files.length ? `${files.length} imagem(ns) selecionada(s).` : 'Nenhuma imagem selecionada.';
+    statusline.textContent = '';
+    picker.value = '';
+  }
+
+  function resetAll() {
+    setFiles([]);
+    progress.style.display = 'none';
+    bar.style.width = '0%';
+  }
+
+  function fmtBytes(n) {
+    if (n < 1024) return `${n} B`;
+    if (n < 1024*1024) return `${(n/1024).toFixed(1)} KB`;
+    return `${(n/1024/1024).toFixed(2)} MB`;
+  }
+
+  async function sha256(buf) {
+    const hash = await crypto.subtle.digest('SHA-256', buf);
+    return [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2,'0')).join('');
+  }
+
+  function baseName(name) {
+    return name.replace(/\.[^/.]+$/, '');
+  }
+
+  function uint32be(n) {
+    return new Uint8Array([(n>>>24)&255,(n>>>16)&255,(n>>>8)&255,n&255]);
+  }
+
+  const crcTable = (() => {
+    const t = new Uint32Array(256);
+    for (let n=0;n<256;n++) {
+      let c=n;
+      for (let k=0;k<8;k++) c = (c&1) ? (0xedb88320 ^ (c>>>1)) : (c>>>1);
+      t[n]=c>>>0;
+    }
+    return t;
+  })();
+
+  function crc32(parts) {
+    let c=0xffffffff;
+    for (const part of parts) {
+      for (let i=0;i<part.length;i++) c = crcTable[(c ^ part[i]) & 255] ^ (c>>>8);
+    }
+    return (c ^ 0xffffffff)>>>0;
+  }
+
+  function chunk(type, data) {
+    const t = enc.encode(type);
+    const crc = crc32([t,data]);
+    const out = new Uint8Array(12 + data.length);
+    out.set(uint32be(data.length),0);
+    out.set(t,4);
+    out.set(data,8);
+    out.set(uint32be(crc),8+data.length);
+    return out;
+  }
+
+  function concat(parts) {
+    const size = parts.reduce((s,p)=>s+p.length,0);
+    const out = new Uint8Array(size);
+    let off=0;
+    for (const p of parts) { out.set(p,off); off += p.length; }
+    return out;
+  }
+
+  function paeth(a,b,c) {
+    const p=a+b-c, pa=Math.abs(p-a), pb=Math.abs(p-b), pc=Math.abs(p-c);
+    if (pa<=pb && pa<=pc) return a;
+    if (pb<=pc) return b;
+    return c;
+  }
+
+  function randomInt(max) {
+    const a = new Uint32Array(1);
+    crypto.getRandomValues(a);
+    return a[0] % max;
+  }
+
+  function getOriginalPngColorType(arrayBuffer) {
+    const b = new Uint8Array(arrayBuffer);
+    if (b.length < 29) return null;
+    const sig = [137,80,78,71,13,10,26,10];
+    for (let i=0;i<8;i++) if (b[i] !== sig[i]) return null;
+    const type = String.fromCharCode(b[12],b[13],b[14],b[15]);
+    if (type !== 'IHDR') return null;
+    return b[25];
+  }
+
+  async function decodeToImageData(file) {
+    let bitmap;
+    try {
+      bitmap = await createImageBitmap(file, {premultiplyAlpha:'none', colorSpaceConversion:'none'});
+    } catch {
+      bitmap = await createImageBitmap(file);
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width; canvas.height = bitmap.height;
+    const ctx = canvas.getContext('2d', {willReadFrequently:true});
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(bitmap,0,0);
+    const data = ctx.getImageData(0,0,canvas.width,canvas.height);
+    bitmap.close();
+    return data;
+  }
+
+  function encodePng(imageData, originalColorType, options) {
+    const {width,height,data} = imageData;
+    let allOpaque = true;
+    for (let i=3;i<data.length;i+=4) { if (data[i] !== 255) { allOpaque=false; break; } }
+
+    let colorType = allOpaque ? 2 : 6;
+    if (allOpaque && options.toggleColorType) {
+      if (originalColorType === 6) colorType = 2;
+      else if (originalColorType === 2) colorType = 6;
+      else colorType = 2;
+    }
+
+    const bpp = colorType === 6 ? 4 : 3;
+    const stride = width * bpp;
+    const raw = new Uint8Array((stride+1)*height);
+    let prev = new Uint8Array(stride);
+    let row = new Uint8Array(stride);
+
+    for (let y=0;y<height;y++) {
+      let q=0;
+      for (let x=0;x<width;x++) {
+        const i=(y*width+x)*4;
+        row[q++]=data[i];
+        row[q++]=data[i+1];
+        row[q++]=data[i+2];
+        if (colorType===6) row[q++]=data[i+3];
+      }
+
+      let filter = options.toggleRandomFilters ? randomInt(5) : 4;
+      const base = y*(stride+1);
+      raw[base]=filter;
+
+      for (let i=0;i<stride;i++) {
+        const x=row[i], left=i>=bpp?row[i-bpp]:0, up=prev[i], ul=i>=bpp?prev[i-bpp]:0;
+        let v=x;
+        if (filter===1) v=(x-left)&255;
+        else if (filter===2) v=(x-up)&255;
+        else if (filter===3) v=(x-Math.floor((left+up)/2))&255;
+        else if (filter===4) v=(x-paeth(left,up,ul))&255;
+        raw[base+1+i]=v;
+      }
+      const tmp=prev; prev=row; row=tmp;
+    }
+
+    const compressed = pako.deflate(raw, {level:9});
+    const ihdr = new Uint8Array(13);
+    ihdr.set(uint32be(width),0); ihdr.set(uint32be(height),4);
+    ihdr[8]=8; ihdr[9]=colorType; ihdr[10]=0; ihdr[11]=0; ihdr[12]=0;
+
+    const parts = [
+      new Uint8Array([137,80,78,71,13,10,26,10]),
+      chunk('IHDR', ihdr)
+    ];
+
+    if (options.toggleNonce) {
+      const nonce = new Uint8Array(32);
+      crypto.getRandomValues(nonce);
+      parts.push(chunk('raNd', nonce));
+    }
+
+    let pos=0;
+    while (pos<compressed.length) {
+      const span = Math.min(compressed.length-pos, 16384 + randomInt(81920));
+      parts.push(chunk('IDAT', compressed.subarray(pos,pos+span)));
+      pos += span;
+    }
+    parts.push(chunk('IEND', new Uint8Array(0)));
+    return concat(parts);
+  }
+
+  async function verifyPixels(blob, sourceData) {
+    const img = await decodeToImageData(blob);
+    if (img.width !== sourceData.width || img.height !== sourceData.height) return false;
+    const a=img.data, b=sourceData.data;
+    if (a.length !== b.length) return false;
+    for (let i=0;i<a.length;i++) if (a[i] !== b[i]) return false;
+    return true;
+  }
+
+  async function processOne(file) {
+    const originalBuffer = await file.arrayBuffer();
+    const originalHash = await sha256(originalBuffer);
+    const originalColorType = getOriginalPngColorType(originalBuffer);
+    const imageData = await decodeToImageData(file);
+
+    const options = {
+      toggleColorType: document.getElementById('toggleColorType').checked,
+      toggleRandomFilters: document.getElementById('toggleRandomFilters').checked,
+      toggleNonce: document.getElementById('toggleNonce').checked
+    };
+
+    const pngBytes = encodePng(imageData, originalColorType, options);
+    const blob = new Blob([pngBytes], {type:'image/png'});
+    const verified = await verifyPixels(blob, imageData);
+    if (!verified) throw new Error('Falha na verificação pixel-a-pixel.');
+
+    const newBuffer = await blob.arrayBuffer();
+    const newHash = await sha256(newBuffer);
+    if (newHash === originalHash) throw new Error('O SHA-256 não mudou.');
+
+    const name = `${baseName(file.name)}_binary-refresh_${newHash.slice(0,8)}.png`;
+    return {
+      sourceName:file.name, name, width:imageData.width, height:imageData.height,
+      originalSize:file.size, newSize:blob.size,
+      originalHash, newHash, verified, blob
+    };
+  }
+
+  async function processAll() {
+    if (!selectedFiles.length) return;
+    outputs = [];
+    tbody.innerHTML = '';
+    resultsCard.hidden = false;
+    zipBtn.disabled = true;
+    processBtn.disabled = true;
+    clearBtn.disabled = true;
+    progress.style.display = 'block';
+
+    let ok=0, fail=0;
+    for (let i=0;i<selectedFiles.length;i++) {
+      const file=selectedFiles[i];
+      statusline.textContent = `Processando ${i+1}/${selectedFiles.length}: ${file.name}`;
+      bar.style.width = `${Math.round((i/selectedFiles.length)*100)}%`;
+
+      try {
+        const r=await processOne(file);
+        outputs.push(r); ok++;
+        addRow(r);
+      } catch (err) {
+        fail++;
+        addErrorRow(file, err);
+      }
+      await new Promise(r=>setTimeout(r,0));
+    }
+
+    bar.style.width='100%';
+    statusline.textContent = `Concluído: ${ok} sucesso(s), ${fail} falha(s).`;
+    summary.textContent = `${ok} processada(s) • ${fail} falha(s)`;
+    zipBtn.disabled = outputs.length===0;
+    processBtn.disabled = false;
+    clearBtn.disabled = false;
+  }
+
+  function addRow(r) {
+    const tr=document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(r.sourceName)}</td>
+      <td>${r.width}×${r.height}</td>
+      <td>${fmtBytes(r.originalSize)}</td>
+      <td>${fmtBytes(r.newSize)}</td>
+      <td><code>${r.originalHash}</code></td>
+      <td><code>${r.newHash}</code></td>
+      <td><span class="good">IDÊNTICOS</span></td>
+      <td><button class="mini secondary">Baixar</button></td>`;
+    tr.querySelector('button').addEventListener('click',()=>downloadBlob(r.blob,r.name));
+    tbody.appendChild(tr);
+  }
+
+  function addErrorRow(file, err) {
+    const tr=document.createElement('tr');
+    tr.innerHTML = `<td>${escapeHtml(file.name)}</td><td colspan="6"><span class="bad">${escapeHtml(err.message || String(err))}</span></td><td>—</td>`;
+    tbody.appendChild(tr);
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+  }
+
+  function downloadBlob(blob, name) {
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),2000);
+  }
+
+  async function downloadZip() {
+    if (!outputs.length) return;
+    zipBtn.disabled=true;
+    statusline.textContent='Montando ZIP...';
+
+    const zip=new JSZip();
+    const rows=[['arquivo_original','arquivo_novo','largura','altura','tamanho_original','tamanho_novo','sha256_original','sha256_novo','pixels_idênticos']];
+    for (const r of outputs) {
+      zip.file(r.name,r.blob);
+      rows.push([r.sourceName,r.name,r.width,r.height,r.originalSize,r.newSize,r.originalHash,r.newHash,'SIM']);
+    }
+    const csv = rows.map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    zip.file('relatorio.csv', csv);
+
+    const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
+    downloadBlob(blob,'imagens_binary_refresh.zip');
+    statusline.textContent='ZIP criado.';
+    zipBtn.disabled=false;
+  }
+})();
+</script>
+</body>
+</html>
